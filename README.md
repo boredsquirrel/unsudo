@@ -1,4 +1,7 @@
 # unsudo
+
+![](https://raw.githubusercontent.com/boredsquirrel/unsudo/refs/heads/main/polkit-dialog.png)
+
 Remove "sudo" access from your user to improve security. Instead, a dedicated Admin account is created.
 
 This script works on Distributions using the `sudo` group (like Debian, Ubuntu, Linux Mint) or the `wheel` group (like Fedora, OpenSUSE, Arch).
@@ -73,5 +76,5 @@ Examples:
     - mounting, decrypting external drives
   - Text editor
 - Other apps
- - Fedora media writer
- - Impression
+  - Fedora media writer
+  - Impression
