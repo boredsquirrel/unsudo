@@ -40,6 +40,8 @@ normaluser() {
     privesc gpasswd -d $groupname $USER
 }
 
+# function to add a flatpak rule and group, so that nonwheel/nonsudo users can still manage flatpaks.
+# useful for some administration setups
 flatpak-admin() {
 
     # ask user if this is wanted
