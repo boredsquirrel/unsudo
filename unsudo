@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# function to test the distro and groups
+test-current-admin() {
+
+    # select between sudo and run0
+    if [[ $(systemctl --version | awk 'NR==1{print $2}') -ge 256 ]]; then
+        alias privesc=run0
+    else
+        alias privesc=sudo
+    fi
+
+    # test for debian/ubuntu vs normal distros vs non privileged group
+    if groups $USER | grep -qw sudo; then
+        # debian, ubuntu
+        groupname="sudo"
+    elif groups $USER | grep -qw wheel; then
+        groupname="wheel"
+    else
+        echo "You are not in any privileged group!" && exit
+    fi
+
+}
+
+# function to add the admin user
+adminuser() {
+
+    while true; do
+        read -p "You want to create a separate admin user? Enter their name, or 'q' to cancel. " choice
+        case $choice in
+        *) privesc useradd $choice && privesc usermod -aG $groupname $choice && privesc passwd $choice && break ;;
+        [NnqQcC]*) echo "Admin user creation cancelled." && break ;;
+        esac
+    done
+
+}
+
+# function to create the admin user
+normaluser() {
+    privesc gpasswd -d $groupname $USER
+}
+
+flatpak-admin() {
+
+    # ask user if this is wanted
+    while true; do
+        echo "What user should have the right to manage Flatpak apps? This allows them full access to them, but does not require wheel/sudo access."
+        read -p "Enter their name, or 'q' to cancel. " fname
+        case $fname in
+        *) echo "Okay, user $fname will get Flatpak admin permissions now..." && break ;;
+        [NnqQcC]*) echo "Flatpak admin user creation cancelled." && exit ;;
+        esac
+    done
+
+    # polkit rule that allows users in group "flatpakadmin" to do system changes
+    privesc sh -c 'cat >/etc/polkit-1/rules.d/org.freedesktop.Flatpak.rules <<EOF && echo "Done." || echo "ERROR"
+ polkit.addRule(function(action, subject) {
+     if ((action.id == "org.freedesktop.Flatpak.app-install" ||
+         action.id == "org.freedesktop.Flatpak.runtime-install"||
+         action.id == "org.freedesktop.Flatpak.app-uninstall" ||
+         action.id == "org.freedesktop.Flatpak.runtime-uninstall" ||
+         action.id == "org.freedesktop.Flatpak.modify-repo") &&
+         subject.active == true && subject.local == true && (
+         subject.isInGroup("wheel") || subject.isInGroup("flatpakadmin"))) {
+             return polkit.Result.YES;
+     }
+
+     return polkit.Result.NOT_HANDLED;
+ });
+
+ polkit.addRule(function(action, subject) {
+     if (action.id == "org.freedesktop.Flatpak.override-parental-controls") {
+             return polkit.Result.AUTH_ADMIN;
+     }
+
+     return polkit.Result.NOT_HANDLED;
+ });
+EOF
+
+    # add user to group
+    groupadd flatpakadmin
+    usermod -aG flatpakadmin $fname
+    '
+
+}
+
+#### MAIN FUNCTION ####
+
+flatpak-admin
+
+adminuser
+
+# test if "admin" user works
+cat <<EOF
+
+Testing if the newly create admin user works.
+To test, enter this command:
+
+cat /etc/shadow
+
+If it doesn't work, exit the shell with "exit" and enter "n" in the following question!
+
+EOF
+
+if [[ $(systemctl --version | awk 'NR==1{print $2}') -ge 256 ]]; then
+    run0 -u admin
+else
+    su admin
+fi
+
+while true; do
+    echo "If this did not work, your current user will keep their privileges. Please report the issue!"
+    read -p "Can you login and display /etc/shadow ? (y/n) " yn
+    case $yn in
+    [Yy]*) normaluser && break ;;
+    [Nn]*) break ;;
+    *) echo "Please answer yes or no." ;;
+    esac
+done
