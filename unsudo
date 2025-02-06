@@ -35,7 +35,7 @@ adminuser() {
 
 }
 
-# function to create the admin user
+# function to remove admin privileges from user
 normaluser() {
     privesc gpasswd -d $groupname $USER
 }
